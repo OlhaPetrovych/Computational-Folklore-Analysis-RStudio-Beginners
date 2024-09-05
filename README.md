@@ -5,7 +5,7 @@ Folklore
 # Course Overview
 
 Welcome to the **“Computational Analysis in RStudio for Beginners:
-Analyzing Ukrainian Folklore”** course! This course is designed for
+Analyzing Ukrainian Folklore”** course! This curriculum is designed for
 students interested in computational text analysis in the context of
 Ukrainian folklore studies. Over a series of seminars, students will
 learn how to use the R programming language to analyze textual data,
