@@ -16,13 +16,20 @@ library(dplyr)
 library(tidyverse)
 library(scales)
 
-# Load the Tone Dictionary ----
-tone_dict <- read.table(file = 'tone-dict-uk.tsv', sep = '\t', header = TRUE)
+# Load the Tone Dictionary with proper handling
+tone_dict <- read.table(file = 'tone-dict-uk.tsv', sep = '\t', header = TRUE, 
+                        quote = "", fill = TRUE, comment.char = "", stringsAsFactors = FALSE)
+
+# Manually set the correct column names
+colnames(tone_dict) <- c("Word", "Value")
+
+# Check if the first row is an actual data row or a mistaken header
+head(tone_dict)
 
 # Create a Sentiment Dictionary ----
 sent_dict <- dictionary(list(
-  pos = tone_dict[tone_dict$V2 >= 1, "V1"],
-  neg = tone_dict[tone_dict$V2 <= -1, "V1"]
+  pos = tone_dict[tone_dict$Value >= 1, "Word"],
+  neg = tone_dict[tone_dict$Value <= -1, "Word"]
 ))
 
 # Load and Prepare the Ukrainian Ballads Corpus ----
@@ -33,8 +40,11 @@ balladcorpus <- corpus(balladsent)
 balladcorpustok <- tokens(balladcorpus, remove_punct = TRUE, remove_symbols = TRUE, remove_numbers = TRUE, remove_separators = TRUE) %>%
   tokens_tolower()
 
-# Create a Document-Feature Matrix Using the Sentiment Dictionary ----
-balladcorpussent <- dfm(balladcorpustok, dictionary = sent_dict)
+# Create a Document-Feature Matrix (DFM) ----
+ballad_dfm <- dfm(balladcorpustok)
+
+# Apply the Sentiment Dictionary Using dfm_lookup() ----
+balladcorpussent <- dfm_lookup(ballad_dfm, dictionary = sent_dict)
 head(balladcorpussent)
 
 # Convert the Document-Feature Matrix to a Data Frame ----
