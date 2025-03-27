@@ -4,12 +4,15 @@
 library(quanteda)
 library(readtext)
 library(ggplot2)
+library(ggthemes) 
 library(dplyr)
 library(tidyverse)
+library(tidytext)
 library(scales)
 library(tm)
 library(wordcloud)
 library(quanteda.textstats)
+library(readr)
 
 # Part 1: Sentiment Analysis
 
@@ -75,8 +78,22 @@ print(head(word_freq, 20))
 
 # Part 2: Detailed Sentiment Analysis
 
+# Load necessary libraries
+library(tm)
+library(quanteda)
+library(tidytext)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(ggthemes) 
+
 # Read the tone dictionary CSV file as a dataframe
 tone_dict_df <- read.csv2("Ballads_sent_dict.csv", header = TRUE)
+
+# Ensure Score column exists
+if (!"Score" %in% colnames(tone_dict_df) || !"Word" %in% colnames(tone_dict_df)) {
+  stop("Error: 'Score' or 'Word' column missing in Ballads_sent_dict.csv")
+}
 
 # Filter positive and negative words based on the Score column
 positive_words <- tone_dict_df$Word[tone_dict_df$Score > 0]
@@ -85,37 +102,37 @@ negative_words <- tone_dict_df$Word[tone_dict_df$Score < 0]
 # Create a dictionary object from positive and negative words
 tone_dict <- dictionary(list(positive = positive_words, negative = negative_words))
 
-# Clean the corpus
+# Function to clean corpus
 clean_corpus <- function(corpus) {
+  corpus <- tm_map(corpus, content_transformer(tolower))
   corpus <- tm_map(corpus, removePunctuation)
   corpus <- tm_map(corpus, removeNumbers)
-  corpus <- tm_map(corpus, content_transformer(tolower))
   corpus <- tm_map(corpus, stripWhitespace)
   return(corpus)
 }
 
-# Read in the text files
-love <- read_file("Ballads about love and premarital relationships.csv")
-family <- read_file("Ballads about family relationships and conflicts.csv")
-history <- read_file("Ballads about relations and conflicts of social and hist.circumstances.csv")
+# Read text files (Ensure these files exist)
+love <- paste(readLines("Ballads about love and premarital relationships.csv", warn = FALSE), collapse = " ")
+family <- paste(readLines("Ballads about family relationships and conflicts.csv", warn = FALSE), collapse = " ")
+history <- paste(readLines("Ballads about relations and conflicts of social and hist.circumstances.csv", warn = FALSE), collapse = " ")
 
-# Combine the text files into a single corpus
+# Combine texts
 balladsent <- c(love, family, history)
 
-# Create a VectorSource object from the corpus
-ukr_songs_source <- VectorSource(balladsent)
+# Create corpus
+ukr_songs_corpus <- Corpus(VectorSource(balladsent))
 
-# Create a VCorpus object from the VectorSource object
-ukr_songs_corpus <- VCorpus(ukr_songs_source)
-
-# Clean the corpus using the defined clean_corpus() function
+# Clean the corpus
 ukr_songs_text <- clean_corpus(ukr_songs_corpus)
 
-# Create a DocumentTermMatrix object from the cleaned corpus
+# Create a DocumentTermMatrix
 ukr_songs_dtm <- DocumentTermMatrix(ukr_songs_text)
 
-# Create a tidy dataframe from the DocumentTermMatrix object
-ukr_songs <- tidy(ukr_songs_dtm)
+# Convert DTM to a tidy dataframe
+ukr_songs <- as_tibble(tidy(ukr_songs_dtm))  # Ensure `tidytext` is loaded
+
+# Print the first few rows to check
+print(head(ukr_songs))
 
 # Inner join the tidy dataframe with the tone dictionary dataframe
 ukr_songs_lex_words <- inner_join(ukr_songs, tone_dict_df, by = c("term" = "Word"))
@@ -132,9 +149,9 @@ ukr_songs_lex_words <- ukr_songs_lex_words %>%
 ukr_songs_count <- ukr_songs_lex_words %>%
   count(file, Score)
 
-# Plot the count of sentiments for each file
-ggplot(ukr_songs_count, aes(x = Score, y = n)) +
+ggplot(ukr_songs_count, aes(x = Score, y = n, label = n)) +
   geom_col() +
+  geom_text(vjust = -0.5, size = 5) +  # Add labels above bars
   facet_wrap(~ file, ncol = 1) +
   ggtitle("Count of Sentiments in Ukrainian Ballads") +
   theme_gdocs()
@@ -152,7 +169,7 @@ ggplot(ukr_songs_lex_words, aes(x = count, y = polarity, color = file, fill = fi
 
 # Analyze word impact and frequency
 ukr_songs_tidy_pol <- ukr_songs_lex_words %>%
-  filter(count >= 5) %>%
+  filter(count >= 15) %>%
   mutate(pos_or_neg = ifelse(polarity > 0, "pos", "neg"))
 
 # Plot sentiment word polarity
@@ -164,10 +181,16 @@ ggplot(ukr_songs_tidy_pol, aes(reorder(term, polarity), polarity, fill = pos_or_
   theme(axis.text.x = element_text(angle = 90, vjust = -0.1)) +
   facet_wrap(~ file, ncol = 1)
 
-# Plot sentiment word frequency
-ggplot(ukr_songs_tidy_pol, aes(reorder_within(term, count, polarity), count, fill = pos_or_neg)) +
+# Filter top 20 words by frequency
+top_frequency_words <- ukr_songs_tidy_pol %>%
+  group_by(file) %>%
+  top_n(20, count) %>%
+  ungroup()
+
+# Plot sentiment word frequency (Top 20)
+ggplot(top_frequency_words, aes(reorder_within(term, count, polarity), count, fill = pos_or_neg)) +
   geom_col() +
-  ggtitle("Sentiment Word Frequency in Ukrainian Ballads") +
+  ggtitle("Top 20 Sentiment Word Frequency in Ukrainian Ballads") +
   scale_fill_manual(values = c("blue", "red")) +
   xlab("Words") +
   theme_gdocs() +
